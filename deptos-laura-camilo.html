@@ -134,54 +134,27 @@ function youtubeEmbed(url) {
 }
 
 /* ============================================================
-   PARSEO VÍA ANTHROPIC API
+   PARSEO VÍA WORKER DE CLOUDFLARE (producción)
    ============================================================ */
+const WORKER_URL = "https://deptos-parser.camilogovz.workers.dev";
+const APP_TOKEN  = "f8ed5a9778dc1d445b5c937012e7d5585d3341cbf5b1b99b9ac2f6eddfeffc61";
+
 async function parsearContenido(contenido) {
-  const recorte = contenido.slice(0, 30000);
-  const prompt =
-`Sos un extractor de datos de avisos de alquiler de ZonaProp (Argentina). Te paso el contenido de un aviso (texto visible o HTML). Devolvé ÚNICAMENTE un objeto JSON válido, sin markdown, sin explicaciones, sin texto antes ni después.
+  const headers = { "Content-Type": "application/json" };
+  if (APP_TOKEN) headers["X-App-Token"] = APP_TOKEN;
 
-Forma exacta del objeto:
-{
-  "url_zonaprop": "", "titulo": "", "ubicacion": "",
-  "precio_alquiler": 0, "moneda_alquiler": "ARS",
-  "expensas": 0, "ambientes": 0,
-  "superficie_cubierta": 0, "superficie_total": 0, "piso": "",
-  "descripcion": "", "contacto_nombre": "", "contacto_telefono": "", "contacto_email": "",
-  "fotos": [], "video_url": "", "fecha_publicacion": "",
-  "ventajas": [], "desventajas": []
-}
-
-Reglas:
-- Números como number, sin separadores de miles ni símbolos.
-- moneda_alquiler: "ARS" o "USD".
-- Si un dato no aparece: "" para strings, 0 para números, [] para arrays.
-- fotos: extraé hasta 15 URLs de imágenes del aviso. En HTML buscá etiquetas <img> y URLs de CDN de imágenes (suelen contener "zonaprop" o "naventcdn"). Solo URLs http(s) completas.
-- ventajas/desventajas: inferí de la descripción, 0 a 4 ítems cortos cada una.
-- descripcion: máximo 600 caracteres.
-
-Contenido del aviso:
-<<<
-${recorte}
->>>`;
-
-  const resp = await fetch("https://api.anthropic.com/v1/messages", {
+  const resp = await fetch(WORKER_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-6",
-      max_tokens: 1000,
-      messages: [{ role: "user", content: prompt }]
-    })
+    headers,
+    body: JSON.stringify({ contenido }),
   });
-  if (!resp.ok) throw new Error("La API respondió " + resp.status + ". Si la app está fuera de claude.ai, el parseo automático no está disponible sin clave; cargá el aviso a mano.");
-  const data = await resp.json();
-  const texto = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("\n");
-  const limpio = texto.replace(/```json/gi, "").replace(/```/g, "").trim();
-  let obj;
-  try { obj = JSON.parse(limpio); }
-  catch { throw new Error("No se pudo interpretar la respuesta del parser. Revisá el contenido pegado o cargá a mano."); }
-  return obj;
+
+  if (!resp.ok) {
+    let msg = "El parser respondió " + resp.status;
+    try { const e = await resp.json(); if (e.error) msg += " · " + e.error; } catch {}
+    throw new Error(msg + ". Revisá el contenido pegado o cargá el aviso a mano.");
+  }
+  return await resp.json();
 }
 
 /* ============================================================
