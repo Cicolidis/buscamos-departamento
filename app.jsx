@@ -139,6 +139,33 @@ function Badge({ text, color }) {
   );
 }
 
+// Input numérico con separador de miles es-AR (450000 → "450.000").
+// allowEmpty: si está vacío guarda "" (para filtros); si no, guarda 0.
+function NumeroInput({ value, onChange, allowEmpty = false, placeholder, className }) {
+  const display = !Number(value) ? "" : Number(value).toLocaleString("es-AR");
+  const handle = (e) => {
+    const digits = e.target.value.replace(/\D/g, "");
+    onChange(digits === "" ? (allowEmpty ? "" : 0) : Number(digits));
+  };
+  return (
+    <input type="text" inputMode="numeric" value={display} onChange={handle}
+      placeholder={placeholder} className={className} />
+  );
+}
+
+// Campo de formulario estable (definido a nivel de módulo, NO dentro de un render,
+// para que el input no se desmonte en cada tecla y no pierda el foco).
+function Campo({ label, value, onChange, type = "text", span = 1, placeholder }) {
+  return (
+    <div className={span === 2 ? "md:col-span-2" : ""}>
+      <label>{label}</label>
+      {type === "number"
+        ? <NumeroInput value={value} onChange={onChange} placeholder={placeholder} />
+        : <input type={type} value={value ?? ""} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} />}
+    </div>
+  );
+}
+
 /* ============================================================
    TARJETA KANBAN
    ============================================================ */
@@ -215,11 +242,11 @@ function Filtros({ f, setF }) {
         </div>
         <div className="md:col-span-2">
           <label>Precio mín.</label>
-          <input type="number" value={f.precioMin} onChange={e=>upd("precioMin", e.target.value)} placeholder="0" />
+          <NumeroInput value={f.precioMin} onChange={v=>upd("precioMin", v)} allowEmpty placeholder="0" />
         </div>
         <div className="md:col-span-2">
           <label>Precio máx.</label>
-          <input type="number" value={f.precioMax} onChange={e=>upd("precioMax", e.target.value)} placeholder="∞" />
+          <NumeroInput value={f.precioMax} onChange={v=>upd("precioMax", v)} allowEmpty placeholder="∞" />
         </div>
         <div className="md:col-span-2">
           <label>Estrellas mín.</label>
@@ -444,46 +471,39 @@ function Detalle({ depto, usuario, onBack, onSave, onDelete }) {
     try { await onSave(d); } finally { setGuardando(false); }
   };
 
-  const F = ({ k, label, type="text", span=1 }) => (
-    <div className={span===2 ? "md:col-span-2" : ""}>
-      <label>{label}</label>
-      <input type={type} value={d[k] ?? ""} onChange={e=>set(k, type==="number" ? num(e.target.value) : e.target.value)} />
-    </div>
-  );
-
   return (
     <div className="max-w-4xl mx-auto">
       <button onClick={onBack} className="text-sm text-[var(--muted)] hover:text-white mb-4">← Volver al tablero</button>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <F k="titulo" label="Título" span={2} />
-        <F k="ubicacion" label="Ubicación" span={2} />
-        <F k="url_zonaprop" label="URL ZonaProp" span={2} />
+        <Campo label="Título" span={2} value={d.titulo} onChange={(v)=>set("titulo", v)} />
+        <Campo label="Ubicación" span={2} value={d.ubicacion} onChange={(v)=>set("ubicacion", v)} />
+        <Campo label="URL ZonaProp" span={2} value={d.url_zonaprop} onChange={(v)=>set("url_zonaprop", v)} />
 
         <div>
           <label>Precio alquiler</label>
           <div className="flex gap-2">
-            <input type="number" value={d.precio_alquiler ?? 0} onChange={e=>set("precio_alquiler", num(e.target.value))} />
+            <NumeroInput value={d.precio_alquiler} onChange={(v)=>set("precio_alquiler", v)} />
             <select className="!w-24" value={d.moneda_alquiler} onChange={e=>set("moneda_alquiler", e.target.value)}>
               <option>ARS</option><option>USD</option>
             </select>
           </div>
         </div>
-        <F k="expensas" label="Expensas" type="number" />
-        <F k="ambientes" label="Ambientes" type="number" />
-        <F k="piso" label="Piso" />
-        <F k="superficie_cubierta" label="Sup. cubierta (m²)" type="number" />
-        <F k="superficie_total" label="Sup. total (m²)" type="number" />
-        <F k="fecha_publicacion" label="Fecha de publicación" span={2} />
+        <Campo label="Expensas" type="number" value={d.expensas} onChange={(v)=>set("expensas", v)} />
+        <Campo label="Ambientes" type="number" value={d.ambientes} onChange={(v)=>set("ambientes", v)} />
+        <Campo label="Piso" value={d.piso} onChange={(v)=>set("piso", v)} />
+        <Campo label="Sup. cubierta (m²)" type="number" value={d.superficie_cubierta} onChange={(v)=>set("superficie_cubierta", v)} />
+        <Campo label="Sup. total (m²)" type="number" value={d.superficie_total} onChange={(v)=>set("superficie_total", v)} />
+        <Campo label="Fecha de publicación" span={2} value={d.fecha_publicacion} onChange={(v)=>set("fecha_publicacion", v)} />
 
         <div className="md:col-span-2">
           <label>Descripción</label>
           <textarea rows={4} value={d.descripcion ?? ""} onChange={e=>set("descripcion", e.target.value)} />
         </div>
 
-        <F k="contacto_nombre" label="Contacto · nombre" />
-        <F k="contacto_telefono" label="Contacto · teléfono" />
-        <F k="contacto_email" label="Contacto · email" span={2} />
+        <Campo label="Contacto · nombre" value={d.contacto_nombre} onChange={(v)=>set("contacto_nombre", v)} />
+        <Campo label="Contacto · teléfono" value={d.contacto_telefono} onChange={(v)=>set("contacto_telefono", v)} />
+        <Campo label="Contacto · email" span={2} value={d.contacto_email} onChange={(v)=>set("contacto_email", v)} />
       </div>
 
       <div className="mt-5"><Galeria fotos={d.fotos} onChange={(v)=>set("fotos", v)} /></div>

@@ -195,6 +195,54 @@ function Badge({
   }, text);
 }
 
+// Input numérico con separador de miles es-AR (450000 → "450.000").
+// allowEmpty: si está vacío guarda "" (para filtros); si no, guarda 0.
+function NumeroInput({
+  value,
+  onChange,
+  allowEmpty = false,
+  placeholder,
+  className
+}) {
+  const display = !Number(value) ? "" : Number(value).toLocaleString("es-AR");
+  const handle = e => {
+    const digits = e.target.value.replace(/\D/g, "");
+    onChange(digits === "" ? allowEmpty ? "" : 0 : Number(digits));
+  };
+  return /*#__PURE__*/React.createElement("input", {
+    type: "text",
+    inputMode: "numeric",
+    value: display,
+    onChange: handle,
+    placeholder: placeholder,
+    className: className
+  });
+}
+
+// Campo de formulario estable (definido a nivel de módulo, NO dentro de un render,
+// para que el input no se desmonte en cada tecla y no pierda el foco).
+function Campo({
+  label,
+  value,
+  onChange,
+  type = "text",
+  span = 1,
+  placeholder
+}) {
+  return /*#__PURE__*/React.createElement("div", {
+    className: span === 2 ? "md:col-span-2" : ""
+  }, /*#__PURE__*/React.createElement("label", null, label), type === "number" ? /*#__PURE__*/React.createElement(NumeroInput, {
+    value: value,
+    onChange: onChange,
+    placeholder: placeholder
+  }) : /*#__PURE__*/React.createElement("input", {
+    type: type,
+    value: value ?? "",
+    onChange: e => onChange(e.target.value),
+    placeholder: placeholder
+  }));
+}
+
 /* ============================================================
    TARJETA KANBAN
    ============================================================ */
@@ -294,17 +342,17 @@ function Filtros({
     placeholder: "Palermo, balcón, 2 amb…"
   })), /*#__PURE__*/React.createElement("div", {
     className: "md:col-span-2"
-  }, /*#__PURE__*/React.createElement("label", null, "Precio mín."), /*#__PURE__*/React.createElement("input", {
-    type: "number",
+  }, /*#__PURE__*/React.createElement("label", null, "Precio mín."), /*#__PURE__*/React.createElement(NumeroInput, {
     value: f.precioMin,
-    onChange: e => upd("precioMin", e.target.value),
+    onChange: v => upd("precioMin", v),
+    allowEmpty: true,
     placeholder: "0"
   })), /*#__PURE__*/React.createElement("div", {
     className: "md:col-span-2"
-  }, /*#__PURE__*/React.createElement("label", null, "Precio máx."), /*#__PURE__*/React.createElement("input", {
-    type: "number",
+  }, /*#__PURE__*/React.createElement("label", null, "Precio máx."), /*#__PURE__*/React.createElement(NumeroInput, {
     value: f.precioMax,
-    onChange: e => upd("precioMax", e.target.value),
+    onChange: v => upd("precioMax", v),
+    allowEmpty: true,
     placeholder: "∞"
   })), /*#__PURE__*/React.createElement("div", {
     className: "md:col-span-2"
@@ -588,18 +636,6 @@ function Detalle({
       setGuardando(false);
     }
   };
-  const F = ({
-    k,
-    label,
-    type = "text",
-    span = 1
-  }) => /*#__PURE__*/React.createElement("div", {
-    className: span === 2 ? "md:col-span-2" : ""
-  }, /*#__PURE__*/React.createElement("label", null, label), /*#__PURE__*/React.createElement("input", {
-    type: type,
-    value: d[k] ?? "",
-    onChange: e => set(k, type === "number" ? num(e.target.value) : e.target.value)
-  }));
   return /*#__PURE__*/React.createElement("div", {
     className: "max-w-4xl mx-auto"
   }, /*#__PURE__*/React.createElement("button", {
@@ -607,67 +643,78 @@ function Detalle({
     className: "text-sm text-[var(--muted)] hover:text-white mb-4"
   }, "← Volver al tablero"), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-1 md:grid-cols-2 gap-4"
-  }, /*#__PURE__*/React.createElement(F, {
-    k: "titulo",
+  }, /*#__PURE__*/React.createElement(Campo, {
     label: "Título",
-    span: 2
-  }), /*#__PURE__*/React.createElement(F, {
-    k: "ubicacion",
+    span: 2,
+    value: d.titulo,
+    onChange: v => set("titulo", v)
+  }), /*#__PURE__*/React.createElement(Campo, {
     label: "Ubicación",
-    span: 2
-  }), /*#__PURE__*/React.createElement(F, {
-    k: "url_zonaprop",
+    span: 2,
+    value: d.ubicacion,
+    onChange: v => set("ubicacion", v)
+  }), /*#__PURE__*/React.createElement(Campo, {
     label: "URL ZonaProp",
-    span: 2
+    span: 2,
+    value: d.url_zonaprop,
+    onChange: v => set("url_zonaprop", v)
   }), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", null, "Precio alquiler"), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2"
-  }, /*#__PURE__*/React.createElement("input", {
-    type: "number",
-    value: d.precio_alquiler ?? 0,
-    onChange: e => set("precio_alquiler", num(e.target.value))
+  }, /*#__PURE__*/React.createElement(NumeroInput, {
+    value: d.precio_alquiler,
+    onChange: v => set("precio_alquiler", v)
   }), /*#__PURE__*/React.createElement("select", {
     className: "!w-24",
     value: d.moneda_alquiler,
     onChange: e => set("moneda_alquiler", e.target.value)
-  }, /*#__PURE__*/React.createElement("option", null, "ARS"), /*#__PURE__*/React.createElement("option", null, "USD")))), /*#__PURE__*/React.createElement(F, {
-    k: "expensas",
+  }, /*#__PURE__*/React.createElement("option", null, "ARS"), /*#__PURE__*/React.createElement("option", null, "USD")))), /*#__PURE__*/React.createElement(Campo, {
     label: "Expensas",
-    type: "number"
-  }), /*#__PURE__*/React.createElement(F, {
-    k: "ambientes",
+    type: "number",
+    value: d.expensas,
+    onChange: v => set("expensas", v)
+  }), /*#__PURE__*/React.createElement(Campo, {
     label: "Ambientes",
-    type: "number"
-  }), /*#__PURE__*/React.createElement(F, {
-    k: "piso",
-    label: "Piso"
-  }), /*#__PURE__*/React.createElement(F, {
-    k: "superficie_cubierta",
+    type: "number",
+    value: d.ambientes,
+    onChange: v => set("ambientes", v)
+  }), /*#__PURE__*/React.createElement(Campo, {
+    label: "Piso",
+    value: d.piso,
+    onChange: v => set("piso", v)
+  }), /*#__PURE__*/React.createElement(Campo, {
     label: "Sup. cubierta (m²)",
-    type: "number"
-  }), /*#__PURE__*/React.createElement(F, {
-    k: "superficie_total",
+    type: "number",
+    value: d.superficie_cubierta,
+    onChange: v => set("superficie_cubierta", v)
+  }), /*#__PURE__*/React.createElement(Campo, {
     label: "Sup. total (m²)",
-    type: "number"
-  }), /*#__PURE__*/React.createElement(F, {
-    k: "fecha_publicacion",
+    type: "number",
+    value: d.superficie_total,
+    onChange: v => set("superficie_total", v)
+  }), /*#__PURE__*/React.createElement(Campo, {
     label: "Fecha de publicación",
-    span: 2
+    span: 2,
+    value: d.fecha_publicacion,
+    onChange: v => set("fecha_publicacion", v)
   }), /*#__PURE__*/React.createElement("div", {
     className: "md:col-span-2"
   }, /*#__PURE__*/React.createElement("label", null, "Descripción"), /*#__PURE__*/React.createElement("textarea", {
     rows: 4,
     value: d.descripcion ?? "",
     onChange: e => set("descripcion", e.target.value)
-  })), /*#__PURE__*/React.createElement(F, {
-    k: "contacto_nombre",
-    label: "Contacto · nombre"
-  }), /*#__PURE__*/React.createElement(F, {
-    k: "contacto_telefono",
-    label: "Contacto · teléfono"
-  }), /*#__PURE__*/React.createElement(F, {
-    k: "contacto_email",
+  })), /*#__PURE__*/React.createElement(Campo, {
+    label: "Contacto · nombre",
+    value: d.contacto_nombre,
+    onChange: v => set("contacto_nombre", v)
+  }), /*#__PURE__*/React.createElement(Campo, {
+    label: "Contacto · teléfono",
+    value: d.contacto_telefono,
+    onChange: v => set("contacto_telefono", v)
+  }), /*#__PURE__*/React.createElement(Campo, {
     label: "Contacto · email",
-    span: 2
+    span: 2,
+    value: d.contacto_email,
+    onChange: v => set("contacto_email", v)
   })), /*#__PURE__*/React.createElement("div", {
     className: "mt-5"
   }, /*#__PURE__*/React.createElement(Galeria, {
