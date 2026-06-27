@@ -256,6 +256,7 @@ function Card({
 }) {
   const portada = d.fotos && d.fotos.length ? d.fotos[0] : null;
   return /*#__PURE__*/React.createElement("div", {
+    "data-card-id": d.id,
     draggable: draggable,
     onDragStart: draggable ? e => onDragStart(e, d.id) : undefined,
     onClick: () => onOpen(d.id),
@@ -320,6 +321,7 @@ function CardCompacta({
 }) {
   const portada = d.fotos && d.fotos.length ? d.fotos[0] : null;
   return /*#__PURE__*/React.createElement("div", {
+    "data-card-id": d.id,
     draggable: draggable,
     onDragStart: draggable ? e => onDragStart(e, d.id) : undefined,
     onClick: () => onOpen(d.id),
@@ -460,12 +462,33 @@ function aplicaFiltros(list, f) {
 /* ============================================================
    VISTA KANBAN
    ============================================================ */
+// Devuelve el comparador para ordenar una columna según el modo elegido.
+// manual: por `orden` asc; las fichas con `orden` explícito van antes que las
+// nunca reordenadas, que caen por fecha desc (más recientes primero).
+function comparador(sortMode) {
+  if (sortMode === "estrellas") {
+    return (a, b) => (b.estrellas || 0) - (a.estrellas || 0) || (b.creado_en?.seconds || 0) - (a.creado_en?.seconds || 0);
+  }
+  if (sortMode === "manual") {
+    return (a, b) => {
+      const ka = a.orden,
+        kb = b.orden;
+      if (ka != null && kb != null) return ka - kb;
+      if (ka != null) return -1;
+      if (kb != null) return 1;
+      return (b.creado_en?.seconds || 0) - (a.creado_en?.seconds || 0);
+    };
+  }
+  return (a, b) => (b.creado_en?.seconds || 0) - (a.creado_en?.seconds || 0); // recientes
+}
 function Kanban({
   deptos,
   onOpen,
   onMove,
+  onReorder,
   mobile,
-  viewMode
+  viewMode,
+  sortMode
 }) {
   const [tab, setTab] = useState(KANBAN_COLS[0].id);
   const [overCol, setOverCol] = useState(null);
@@ -475,8 +498,10 @@ function Kanban({
     deptos.forEach(d => {
       (g[d.columna_kanban] || g.por_visitar).push(d);
     });
+    KANBAN_COLS.forEach(c => g[c.id].sort(comparador(sortMode)));
     return g;
-  }, [deptos]);
+  }, [deptos, sortMode]);
+  const manual = sortMode === "manual";
   const onDragStart = (e, id) => {
     e.dataTransfer.setData("text/plain", id);
     e.currentTarget.classList.add("card-drag");
@@ -498,12 +523,41 @@ function Kanban({
     onMove: onMove,
     mobile: mobile
   });
+
+  // Índice de inserción según la posición vertical del cursor (ignorando la tarjeta arrastrada).
+  const indiceInsercion = (e, draggedId) => {
+    const cards = [...e.currentTarget.querySelectorAll("[data-card-id]")].filter(el => el.getAttribute("data-card-id") !== draggedId);
+    for (let i = 0; i < cards.length; i++) {
+      const r = cards[i].getBoundingClientRect();
+      if (e.clientY < r.top + r.height / 2) return i;
+    }
+    return cards.length;
+  };
   const onDrop = (e, col) => {
     e.preventDefault();
     const id = e.dataTransfer.getData("text/plain");
     setOverCol(null);
-    if (id) onMove(id, col);
     document.querySelectorAll(".card-drag").forEach(el => el.classList.remove("card-drag"));
+    if (!id) return;
+    if (!manual) {
+      onMove(id, col);
+      return;
+    }
+    // Modo manual: reordenar dentro de la columna destino y persistir el orden.
+    const index = indiceInsercion(e, id);
+    const ids = grouped[col].filter(d => d.id !== id).map(d => d.id);
+    ids.splice(index, 0, id);
+    onReorder(col, ids, id);
+  };
+
+  // Mobile en modo manual: mover una tarjeta arriba/abajo dentro de su columna.
+  const moverEnLista = (col, id, dir) => {
+    const ids = grouped[col].map(d => d.id);
+    const i = ids.indexOf(id),
+      j = i + dir;
+    if (j < 0 || j >= ids.length) return;
+    [ids[i], ids[j]] = [ids[j], ids[i]];
+    onReorder(col, ids, id);
   };
   if (mobile) {
     const col = KANBAN_COLS.find(c => c.id === tab);
@@ -520,7 +574,24 @@ function Kanban({
       className: "opacity-70"
     }, "(", grouped[c.id].length, ")")))), /*#__PURE__*/React.createElement("div", null, grouped[tab].length === 0 ? /*#__PURE__*/React.createElement("p", {
       className: "text-center text-sm text-slate-500 py-10"
-    }, "No hay departamentos en “", col.label, "”.") : grouped[tab].map(d => renderCard(d, false))));
+    }, "No hay departamentos en “", col.label, "”.") : grouped[tab].map((d, i) => manual ? /*#__PURE__*/React.createElement("div", {
+      key: d.id,
+      className: "flex items-stretch gap-2"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex flex-col justify-center gap-1"
+    }, /*#__PURE__*/React.createElement("button", {
+      disabled: i === 0,
+      onClick: () => moverEnLista(tab, d.id, -1),
+      className: "px-2 py-1 rounded border border-[var(--border)] text-sm disabled:opacity-30",
+      title: "Subir"
+    }, "↑"), /*#__PURE__*/React.createElement("button", {
+      disabled: i === grouped[tab].length - 1,
+      onClick: () => moverEnLista(tab, d.id, 1),
+      className: "px-2 py-1 rounded border border-[var(--border)] text-sm disabled:opacity-30",
+      title: "Bajar"
+    }, "↓")), /*#__PURE__*/React.createElement("div", {
+      className: "flex-1 min-w-0"
+    }, renderCard(d, false))) : renderCard(d, false))));
   }
   return /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-4 gap-4"
@@ -988,10 +1059,15 @@ function App() {
   const [filtros, setFiltros] = useState(defaultFiltros());
   const [mobile, setMobile] = useState(window.innerWidth < 768);
   const [viewMode, setViewMode] = useState(() => localStorage.getItem("depto_vista") || "tarjetas"); // tarjetas | lista
+  const [sortMode, setSortMode] = useState(() => localStorage.getItem("depto_orden") || "recientes"); // recientes | estrellas | manual
 
   const cambiarVista = v => {
     localStorage.setItem("depto_vista", v);
     setViewMode(v);
+  };
+  const cambiarOrden = v => {
+    localStorage.setItem("depto_orden", v);
+    setSortMode(v);
   };
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 767px)");
@@ -1040,6 +1116,28 @@ function App() {
       });
     } catch (e) {
       alert("No se pudo mover: " + (e.message || e));
+    }
+  };
+
+  // Reordenamiento manual: persiste `orden` 0..n para la columna destino. A la ficha
+  // movida le actualiza también la columna (si cambió) y los campos de modificación.
+  const reordenar = async (col, idsOrdenados, movedId) => {
+    try {
+      const batch = db.batch();
+      idsOrdenados.forEach((id, i) => {
+        const data = {
+          orden: i
+        };
+        if (id === movedId) {
+          data.columna_kanban = col;
+          data.modificado_por = usuario;
+          data.modificado_en = ts();
+        }
+        batch.update(COL().doc(id), data);
+      });
+      await batch.commit();
+    } catch (e) {
+      alert("No se pudo reordenar: " + (e.message || e));
     }
   };
   const guardar = async d => {
@@ -1114,7 +1212,18 @@ function App() {
     className: "text-xs text-[var(--muted)]"
   }, visibles.length, "/", deptos.length, " visibles")), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-2"
-  }, view === "kanban" && /*#__PURE__*/React.createElement("div", {
+  }, view === "kanban" && /*#__PURE__*/React.createElement("select", {
+    value: sortMode,
+    onChange: e => cambiarOrden(e.target.value),
+    title: "Ordenar tableros",
+    className: "!w-auto !py-1.5 !text-sm bg-[var(--surface)] border border-[var(--border)] rounded-lg"
+  }, /*#__PURE__*/React.createElement("option", {
+    value: "recientes"
+  }, "Recientes"), /*#__PURE__*/React.createElement("option", {
+    value: "estrellas"
+  }, "Mejor valorados"), /*#__PURE__*/React.createElement("option", {
+    value: "manual"
+  }, "Orden manual")), view === "kanban" && /*#__PURE__*/React.createElement("div", {
     className: "flex bg-[var(--surface)] border border-[var(--border)] rounded-lg overflow-hidden"
   }, [{
     id: "tarjetas",
@@ -1165,8 +1274,10 @@ function App() {
     deptos: visibles,
     onOpen: abrir,
     onMove: mover,
+    onReorder: reordenar,
     mobile: mobile,
-    viewMode: viewMode
+    viewMode: viewMode,
+    sortMode: sortMode
   })), view === "detalle" && deptoActual && /*#__PURE__*/React.createElement(Detalle, {
     depto: deptoActual,
     usuario: usuario,
