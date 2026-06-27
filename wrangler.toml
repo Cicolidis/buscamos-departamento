@@ -1,0 +1,13 @@
+name = "deptos-parser"
+main = "worker.js"
+compatibility_date = "2026-06-01"
+
+# Variables PÚBLICAS (no secretas). Se ven en el dashboard; está bien para estas.
+# Reemplazá por tu dominio real de GitHub Pages una vez que lo tengas.
+# El "origen" es solo esquema + host (sin la ruta del repo).
+[vars]
+ALLOWED_ORIGIN = "https://TU-USUARIO.github.io"
+
+# Los SECRETS no van acá. Se cargan por separado con:
+#   wrangler secret put ANTHROPIC_API_KEY
+#   wrangler secret put APP_TOKEN        (opcional)
