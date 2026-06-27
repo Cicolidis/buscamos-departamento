@@ -311,6 +311,45 @@ function Card({
   }, c.label)))));
 }
 
+// Variante concisa tipo lista: una fila baja con miniatura, datos clave y estrellas.
+function CardCompacta({
+  d,
+  onOpen,
+  draggable,
+  onDragStart
+}) {
+  const portada = d.fotos && d.fotos.length ? d.fotos[0] : null;
+  return /*#__PURE__*/React.createElement("div", {
+    draggable: draggable,
+    onDragStart: draggable ? e => onDragStart(e, d.id) : undefined,
+    onClick: () => onOpen(d.id),
+    className: "bg-[var(--surface)] border border-[var(--border)] rounded-lg p-2 mb-2 cursor-pointer hover:border-slate-500 transition-colors flex items-center gap-2"
+  }, portada ? /*#__PURE__*/React.createElement("img", {
+    src: portada,
+    alt: "",
+    loading: "lazy",
+    className: "w-10 h-10 rounded object-cover flex-shrink-0 bg-[var(--surface2)]",
+    onError: e => {
+      e.target.style.visibility = "hidden";
+    }
+  }) : /*#__PURE__*/React.createElement("div", {
+    className: "w-10 h-10 rounded flex-shrink-0 bg-[var(--surface2)]"
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "min-w-0 flex-1"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "font-medium text-xs leading-snug truncate"
+  }, d.titulo || "Sin título"), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[var(--muted)] truncate"
+  }, d.ubicacion || "—"), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-2 mt-0.5"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-xs font-semibold"
+  }, fmtMoney(d.precio_alquiler, d.moneda_alquiler)), /*#__PURE__*/React.createElement(Stars, {
+    value: d.estrellas || 0,
+    size: 11
+  }))));
+}
+
 /* ============================================================
    BARRA DE FILTROS
    ============================================================ */
@@ -425,7 +464,8 @@ function Kanban({
   deptos,
   onOpen,
   onMove,
-  mobile
+  mobile,
+  viewMode
 }) {
   const [tab, setTab] = useState(KANBAN_COLS[0].id);
   const [overCol, setOverCol] = useState(null);
@@ -441,6 +481,23 @@ function Kanban({
     e.dataTransfer.setData("text/plain", id);
     e.currentTarget.classList.add("card-drag");
   };
+
+  // Elige tarjeta normal o compacta según el modo de vista.
+  const renderCard = (d, draggable) => viewMode === "lista" ? /*#__PURE__*/React.createElement(CardCompacta, {
+    key: d.id,
+    d: d,
+    onOpen: onOpen,
+    draggable: draggable,
+    onDragStart: onDragStart
+  }) : /*#__PURE__*/React.createElement(Card, {
+    key: d.id,
+    d: d,
+    onOpen: onOpen,
+    draggable: draggable,
+    onDragStart: onDragStart,
+    onMove: onMove,
+    mobile: mobile
+  });
   const onDrop = (e, col) => {
     e.preventDefault();
     const id = e.dataTransfer.getData("text/plain");
@@ -463,14 +520,7 @@ function Kanban({
       className: "opacity-70"
     }, "(", grouped[c.id].length, ")")))), /*#__PURE__*/React.createElement("div", null, grouped[tab].length === 0 ? /*#__PURE__*/React.createElement("p", {
       className: "text-center text-sm text-slate-500 py-10"
-    }, "No hay departamentos en “", col.label, "”.") : grouped[tab].map(d => /*#__PURE__*/React.createElement(Card, {
-      key: d.id,
-      d: d,
-      onOpen: onOpen,
-      draggable: false,
-      onMove: onMove,
-      mobile: true
-    }))));
+    }, "No hay departamentos en “", col.label, "”.") : grouped[tab].map(d => renderCard(d, false))));
   }
   return /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-4 gap-4"
@@ -497,14 +547,7 @@ function Kanban({
     className: "text-xs text-[var(--muted)]"
   }, grouped[c.id].length)), grouped[c.id].length === 0 ? /*#__PURE__*/React.createElement("p", {
     className: "text-xs text-slate-600 text-center py-6"
-  }, "Arrastrá tarjetas acá") : grouped[c.id].map(d => /*#__PURE__*/React.createElement(Card, {
-    key: d.id,
-    d: d,
-    onOpen: onOpen,
-    draggable: true,
-    onDragStart: onDragStart,
-    onMove: onMove
-  })))));
+  }, "Arrastrá tarjetas acá") : grouped[c.id].map(d => renderCard(d, true)))));
 }
 
 /* ============================================================
@@ -514,30 +557,44 @@ function ListaEditable({
   titulo,
   items,
   onChange,
-  color
+  color,
+  sugerencias
 }) {
   const [nuevo, setNuevo] = useState("");
-  const add = () => {
-    if (nuevo.trim()) {
-      onChange([...(items || []), nuevo.trim()]);
-      setNuevo("");
-    }
+  const actuales = items || [];
+  const add = texto => {
+    const t = (texto ?? nuevo).trim();
+    if (t && !actuales.includes(t)) onChange([...actuales, t]);
+    if (texto == null) setNuevo("");
   };
+  // Sugerencias = frases usadas antes que todavía no están en esta ficha.
+  const disponibles = (sugerencias || []).filter(s => !actuales.includes(s));
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
     style: {
       color
     }
   }, titulo), /*#__PURE__*/React.createElement("div", {
     className: "space-y-1 mb-2"
-  }, (items || []).map((it, i) => /*#__PURE__*/React.createElement("div", {
+  }, actuales.map((it, i) => /*#__PURE__*/React.createElement("div", {
     key: i,
     className: "flex items-center gap-2"
   }, /*#__PURE__*/React.createElement("span", {
     className: "text-sm flex-1 bg-[var(--surface2)] border border-[var(--border)] rounded-lg px-2.5 py-1.5"
   }, it), /*#__PURE__*/React.createElement("button", {
-    onClick: () => onChange(items.filter((_, j) => j !== i)),
+    onClick: () => onChange(actuales.filter((_, j) => j !== i)),
     className: "text-slate-500 hover:text-rose-400 text-sm px-2"
-  }, "✕")))), /*#__PURE__*/React.createElement("div", {
+  }, "✕")))), disponibles.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "flex flex-wrap gap-1.5 mb-2"
+  }, disponibles.map(s => /*#__PURE__*/React.createElement("button", {
+    key: s,
+    onClick: () => add(s),
+    style: {
+      borderColor: color + "66",
+      color
+    },
+    className: "px-2 py-0.5 rounded-full text-[11px] border bg-transparent hover:bg-[var(--surface2)]",
+    title: "Agregar de registros anteriores"
+  }, "+ ", s))), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2"
   }, /*#__PURE__*/React.createElement("input", {
     value: nuevo,
@@ -550,7 +607,7 @@ function ListaEditable({
     },
     placeholder: "Agregar…"
   }), /*#__PURE__*/React.createElement("button", {
-    onClick: add,
+    onClick: () => add(),
     className: "px-3 rounded-lg border border-[var(--border)] text-sm hover:border-slate-500"
   }, "+")));
 }
@@ -618,7 +675,8 @@ function Detalle({
   usuario,
   onBack,
   onSave,
-  onDelete
+  onDelete,
+  sugerencias
 }) {
   const [d, setD] = useState(depto);
   const [guardando, setGuardando] = useState(false);
@@ -744,12 +802,14 @@ function Detalle({
     titulo: "Ventajas",
     items: d.ventajas,
     onChange: v => set("ventajas", v),
-    color: "#22c55e"
+    color: "#22c55e",
+    sugerencias: sugerencias?.ventajas
   }), /*#__PURE__*/React.createElement(ListaEditable, {
     titulo: "Desventajas",
     items: d.desventajas,
     onChange: v => set("desventajas", v),
-    color: "#f43f5e"
+    color: "#f43f5e",
+    sugerencias: sugerencias?.desventajas
   })), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-1 md:grid-cols-2 gap-4 mt-5"
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", null, "Valoración"), /*#__PURE__*/React.createElement(Stars, {
@@ -927,6 +987,12 @@ function App() {
   const [errConn, setErrConn] = useState(dbError);
   const [filtros, setFiltros] = useState(defaultFiltros());
   const [mobile, setMobile] = useState(window.innerWidth < 768);
+  const [viewMode, setViewMode] = useState(() => localStorage.getItem("depto_vista") || "tarjetas"); // tarjetas | lista
+
+  const cambiarVista = v => {
+    localStorage.setItem("depto_vista", v);
+    setViewMode(v);
+  };
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 767px)");
     const h = () => setMobile(mq.matches);
@@ -1023,6 +1089,15 @@ function App() {
   });
   const deptoActual = draft || deptos.find(d => d.id === openId) || null;
   const visibles = aplicaFiltros(deptos, filtros);
+
+  // Frases distintas de ventajas/desventajas ya usadas, para sugerir al cargar/editar.
+  const sugerencias = useMemo(() => {
+    const juntar = k => [...new Set(deptos.flatMap(d => d[k] || []).map(s => String(s).trim()).filter(Boolean))].sort();
+    return {
+      ventajas: juntar("ventajas"),
+      desventajas: juntar("desventajas")
+    };
+  }, [deptos]);
   return /*#__PURE__*/React.createElement("div", {
     className: "max-w-7xl mx-auto px-3 md:px-6 py-4"
   }, /*#__PURE__*/React.createElement("header", {
@@ -1039,7 +1114,22 @@ function App() {
     className: "text-xs text-[var(--muted)]"
   }, visibles.length, "/", deptos.length, " visibles")), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-2"
-  }, /*#__PURE__*/React.createElement("button", {
+  }, view === "kanban" && /*#__PURE__*/React.createElement("div", {
+    className: "flex bg-[var(--surface)] border border-[var(--border)] rounded-lg overflow-hidden"
+  }, [{
+    id: "tarjetas",
+    ic: "▦",
+    t: "Tarjetas"
+  }, {
+    id: "lista",
+    ic: "☰",
+    t: "Lista"
+  }].map(v => /*#__PURE__*/React.createElement("button", {
+    key: v.id,
+    onClick: () => cambiarVista(v.id),
+    title: v.t,
+    className: "px-2.5 py-1.5 text-sm " + (viewMode === v.id ? "bg-[var(--primary)] text-black font-semibold" : "text-[var(--muted)] hover:text-white")
+  }, v.ic))), /*#__PURE__*/React.createElement("button", {
     onClick: () => {
       setDraft(null);
       setView("ingesta");
@@ -1075,10 +1165,12 @@ function App() {
     deptos: visibles,
     onOpen: abrir,
     onMove: mover,
-    mobile: mobile
+    mobile: mobile,
+    viewMode: viewMode
   })), view === "detalle" && deptoActual && /*#__PURE__*/React.createElement(Detalle, {
     depto: deptoActual,
     usuario: usuario,
+    sugerencias: sugerencias,
     onBack: () => {
       setView("kanban");
       setOpenId(null);

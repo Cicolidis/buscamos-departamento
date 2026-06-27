@@ -222,6 +222,33 @@ function Card({ d, onOpen, draggable, onDragStart, onMove, mobile }) {
   );
 }
 
+// Variante concisa tipo lista: una fila baja con miniatura, datos clave y estrellas.
+function CardCompacta({ d, onOpen, draggable, onDragStart }) {
+  const portada = (d.fotos && d.fotos.length) ? d.fotos[0] : null;
+  return (
+    <div
+      draggable={draggable}
+      onDragStart={draggable ? (e)=>onDragStart(e, d.id) : undefined}
+      onClick={()=>onOpen(d.id)}
+      className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-2 mb-2 cursor-pointer hover:border-slate-500 transition-colors flex items-center gap-2"
+    >
+      {portada
+        ? <img src={portada} alt="" loading="lazy"
+            className="w-10 h-10 rounded object-cover flex-shrink-0 bg-[var(--surface2)]"
+            onError={(e)=>{ e.target.style.visibility="hidden"; }} />
+        : <div className="w-10 h-10 rounded flex-shrink-0 bg-[var(--surface2)]" />}
+      <div className="min-w-0 flex-1">
+        <div className="font-medium text-xs leading-snug truncate">{d.titulo || "Sin título"}</div>
+        <div className="text-[11px] text-[var(--muted)] truncate">{d.ubicacion || "—"}</div>
+        <div className="flex items-center gap-2 mt-0.5">
+          <span className="text-xs font-semibold">{fmtMoney(d.precio_alquiler, d.moneda_alquiler)}</span>
+          <Stars value={d.estrellas || 0} size={11} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ============================================================
    BARRA DE FILTROS
    ============================================================ */
@@ -320,7 +347,7 @@ function aplicaFiltros(list, f) {
 /* ============================================================
    VISTA KANBAN
    ============================================================ */
-function Kanban({ deptos, onOpen, onMove, mobile }) {
+function Kanban({ deptos, onOpen, onMove, mobile, viewMode }) {
   const [tab, setTab] = useState(KANBAN_COLS[0].id);
   const [overCol, setOverCol] = useState(null);
 
@@ -331,6 +358,12 @@ function Kanban({ deptos, onOpen, onMove, mobile }) {
   }, [deptos]);
 
   const onDragStart = (e, id) => { e.dataTransfer.setData("text/plain", id); e.currentTarget.classList.add("card-drag"); };
+
+  // Elige tarjeta normal o compacta según el modo de vista.
+  const renderCard = (d, draggable) => viewMode === "lista"
+    ? <CardCompacta key={d.id} d={d} onOpen={onOpen} draggable={draggable} onDragStart={onDragStart} />
+    : <Card key={d.id} d={d} onOpen={onOpen} draggable={draggable} onDragStart={onDragStart} onMove={onMove} mobile={mobile} />;
+
   const onDrop = (e, col) => {
     e.preventDefault();
     const id = e.dataTransfer.getData("text/plain");
@@ -356,7 +389,7 @@ function Kanban({ deptos, onOpen, onMove, mobile }) {
         <div>
           {grouped[tab].length === 0
             ? <p className="text-center text-sm text-slate-500 py-10">No hay departamentos en “{col.label}”.</p>
-            : grouped[tab].map(d => <Card key={d.id} d={d} onOpen={onOpen} draggable={false} onMove={onMove} mobile />)}
+            : grouped[tab].map(d => renderCard(d, false))}
         </div>
       </div>
     );
@@ -376,9 +409,7 @@ function Kanban({ deptos, onOpen, onMove, mobile }) {
           </div>
           {grouped[c.id].length === 0
             ? <p className="text-xs text-slate-600 text-center py-6">Arrastrá tarjetas acá</p>
-            : grouped[c.id].map(d => (
-                <Card key={d.id} d={d} onOpen={onOpen} draggable onDragStart={onDragStart} onMove={onMove} />
-              ))}
+            : grouped[c.id].map(d => renderCard(d, true))}
         </div>
       ))}
     </div>
@@ -388,26 +419,43 @@ function Kanban({ deptos, onOpen, onMove, mobile }) {
 /* ============================================================
    LISTA EDITABLE (ventajas / desventajas)
    ============================================================ */
-function ListaEditable({ titulo, items, onChange, color }) {
+function ListaEditable({ titulo, items, onChange, color, sugerencias }) {
   const [nuevo, setNuevo] = useState("");
-  const add = () => { if (nuevo.trim()) { onChange([...(items||[]), nuevo.trim()]); setNuevo(""); } };
+  const actuales = items || [];
+  const add = (texto) => {
+    const t = (texto ?? nuevo).trim();
+    if (t && !actuales.includes(t)) onChange([...actuales, t]);
+    if (texto == null) setNuevo("");
+  };
+  // Sugerencias = frases usadas antes que todavía no están en esta ficha.
+  const disponibles = (sugerencias || []).filter(s => !actuales.includes(s));
   return (
     <div>
       <label style={{ color }}>{titulo}</label>
       <div className="space-y-1 mb-2">
-        {(items||[]).map((it, i) => (
+        {actuales.map((it, i) => (
           <div key={i} className="flex items-center gap-2">
             <span className="text-sm flex-1 bg-[var(--surface2)] border border-[var(--border)] rounded-lg px-2.5 py-1.5">{it}</span>
-            <button onClick={()=>onChange(items.filter((_,j)=>j!==i))}
+            <button onClick={()=>onChange(actuales.filter((_,j)=>j!==i))}
               className="text-slate-500 hover:text-rose-400 text-sm px-2">✕</button>
           </div>
         ))}
       </div>
+      {disponibles.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {disponibles.map(s => (
+            <button key={s} onClick={()=>add(s)}
+              style={{ borderColor: color + "66", color }}
+              className="px-2 py-0.5 rounded-full text-[11px] border bg-transparent hover:bg-[var(--surface2)]"
+              title="Agregar de registros anteriores">+ {s}</button>
+          ))}
+        </div>
+      )}
       <div className="flex gap-2">
         <input value={nuevo} onChange={e=>setNuevo(e.target.value)}
           onKeyDown={e=>{ if(e.key==="Enter"){ e.preventDefault(); add(); } }}
           placeholder="Agregar…" />
-        <button onClick={add} className="px-3 rounded-lg border border-[var(--border)] text-sm hover:border-slate-500">+</button>
+        <button onClick={()=>add()} className="px-3 rounded-lg border border-[var(--border)] text-sm hover:border-slate-500">+</button>
       </div>
     </div>
   );
@@ -459,7 +507,7 @@ function Galeria({ fotos, onChange }) {
 /* ============================================================
    VISTA DETALLE / EDICIÓN
    ============================================================ */
-function Detalle({ depto, usuario, onBack, onSave, onDelete }) {
+function Detalle({ depto, usuario, onBack, onSave, onDelete, sugerencias }) {
   const [d, setD] = useState(depto);
   const [guardando, setGuardando] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
@@ -522,8 +570,8 @@ function Detalle({ depto, usuario, onBack, onSave, onDelete }) {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-5">
-        <ListaEditable titulo="Ventajas" items={d.ventajas} onChange={(v)=>set("ventajas", v)} color="#22c55e" />
-        <ListaEditable titulo="Desventajas" items={d.desventajas} onChange={(v)=>set("desventajas", v)} color="#f43f5e" />
+        <ListaEditable titulo="Ventajas" items={d.ventajas} onChange={(v)=>set("ventajas", v)} color="#22c55e" sugerencias={sugerencias?.ventajas} />
+        <ListaEditable titulo="Desventajas" items={d.desventajas} onChange={(v)=>set("desventajas", v)} color="#f43f5e" sugerencias={sugerencias?.desventajas} />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-5">
@@ -675,6 +723,9 @@ function App() {
   const [errConn, setErrConn] = useState(dbError);
   const [filtros, setFiltros] = useState(defaultFiltros());
   const [mobile, setMobile] = useState(window.innerWidth < 768);
+  const [viewMode, setViewMode] = useState(() => localStorage.getItem("depto_vista") || "tarjetas"); // tarjetas | lista
+
+  const cambiarVista = (v) => { localStorage.setItem("depto_vista", v); setViewMode(v); };
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 767px)");
@@ -733,6 +784,12 @@ function App() {
   const deptoActual = draft || deptos.find(d => d.id === openId) || null;
   const visibles = aplicaFiltros(deptos, filtros);
 
+  // Frases distintas de ventajas/desventajas ya usadas, para sugerir al cargar/editar.
+  const sugerencias = useMemo(() => {
+    const juntar = (k) => [...new Set(deptos.flatMap(d => d[k] || []).map(s => String(s).trim()).filter(Boolean))].sort();
+    return { ventajas: juntar("ventajas"), desventajas: juntar("desventajas") };
+  }, [deptos]);
+
   return (
     <div className="max-w-7xl mx-auto px-3 md:px-6 py-4">
       {/* Header */}
@@ -746,6 +803,16 @@ function App() {
           )}
         </div>
         <div className="flex items-center gap-2">
+          {view==="kanban" && (
+            <div className="flex bg-[var(--surface)] border border-[var(--border)] rounded-lg overflow-hidden">
+              {[{id:"tarjetas",ic:"▦",t:"Tarjetas"},{id:"lista",ic:"☰",t:"Lista"}].map(v => (
+                <button key={v.id} onClick={()=>cambiarVista(v.id)} title={v.t}
+                  className={"px-2.5 py-1.5 text-sm " + (viewMode===v.id ? "bg-[var(--primary)] text-black font-semibold" : "text-[var(--muted)] hover:text-white")}>
+                  {v.ic}
+                </button>
+              ))}
+            </div>
+          )}
           <button onClick={()=>{ setDraft(null); setView("ingesta"); }}
             className="px-3 py-1.5 rounded-lg bg-[var(--primary)] text-black font-semibold text-sm">+ Agregar</button>
           <div className="flex items-center gap-2 bg-[var(--surface)] border border-[var(--border)] rounded-lg pl-3 pr-1.5 py-1">
@@ -777,12 +844,12 @@ function App() {
                   <p className="text-[var(--muted)] mb-3">Todavía no hay departamentos cargados.</p>
                   <button onClick={()=>setView("ingesta")} className="px-4 py-2 rounded-lg bg-[var(--primary)] text-black font-semibold text-sm">Agregar el primero</button>
                 </div>
-              : <Kanban deptos={visibles} onOpen={abrir} onMove={mover} mobile={mobile} />}
+              : <Kanban deptos={visibles} onOpen={abrir} onMove={mover} mobile={mobile} viewMode={viewMode} />}
         </>
       )}
 
       {view === "detalle" && deptoActual && (
-        <Detalle depto={deptoActual} usuario={usuario}
+        <Detalle depto={deptoActual} usuario={usuario} sugerencias={sugerencias}
           onBack={()=>{ setView("kanban"); setOpenId(null); setDraft(null); }}
           onSave={guardar} onDelete={eliminar} />
       )}
