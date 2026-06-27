@@ -243,6 +243,111 @@ function Campo({
   }));
 }
 
+// Botones de una ficha: abrir el aviso de ZonaProp en pestaña nueva y copiar su enlace.
+// No se muestra si la ficha no tiene URL. Frena la propagación para no abrir el detalle.
+function AccionesZonaProp({
+  url
+}) {
+  const [copiado, setCopiado] = useState(false);
+  if (!url) return null;
+  const abrir = e => {
+    e.stopPropagation();
+    window.open(url, "_blank", "noopener");
+  };
+  const copiar = async e => {
+    e.stopPropagation();
+    try {
+      if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(url);else throw new Error("sin clipboard");
+    } catch {
+      const ta = document.createElement("textarea");
+      ta.value = url;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand("copy");
+      } catch {}
+      document.body.removeChild(ta);
+    }
+    setCopiado(true);
+    setTimeout(() => setCopiado(false), 1200);
+  };
+  const btn = "p-1 rounded text-[var(--muted)] hover:text-[var(--primary)] hover:bg-[var(--surface2)]";
+  return /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-0.5",
+    onClick: e => e.stopPropagation()
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: abrir,
+    title: "Abrir en ZonaProp",
+    className: btn
+  }, /*#__PURE__*/React.createElement("svg", {
+    viewBox: "0 0 24 24",
+    width: "14",
+    height: "14",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2",
+    strokeLinecap: "round",
+    strokeLinejoin: "round"
+  }, /*#__PURE__*/React.createElement("path", {
+    d: "M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"
+  }), /*#__PURE__*/React.createElement("polyline", {
+    points: "15 3 21 3 21 9"
+  }), /*#__PURE__*/React.createElement("line", {
+    x1: "10",
+    y1: "14",
+    x2: "21",
+    y2: "3"
+  }))), /*#__PURE__*/React.createElement("button", {
+    onClick: copiar,
+    title: copiado ? "¡Copiado!" : "Copiar enlace",
+    className: btn + (copiado ? " !text-[var(--primary)]" : "")
+  }, copiado ? /*#__PURE__*/React.createElement("svg", {
+    viewBox: "0 0 24 24",
+    width: "14",
+    height: "14",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2",
+    strokeLinecap: "round",
+    strokeLinejoin: "round"
+  }, /*#__PURE__*/React.createElement("polyline", {
+    points: "20 6 9 17 4 12"
+  })) : /*#__PURE__*/React.createElement("svg", {
+    viewBox: "0 0 24 24",
+    width: "14",
+    height: "14",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2",
+    strokeLinecap: "round",
+    strokeLinejoin: "round"
+  }, /*#__PURE__*/React.createElement("circle", {
+    cx: "18",
+    cy: "5",
+    r: "3"
+  }), /*#__PURE__*/React.createElement("circle", {
+    cx: "6",
+    cy: "12",
+    r: "3"
+  }), /*#__PURE__*/React.createElement("circle", {
+    cx: "18",
+    cy: "19",
+    r: "3"
+  }), /*#__PURE__*/React.createElement("line", {
+    x1: "8.59",
+    y1: "13.51",
+    x2: "15.42",
+    y2: "17.49"
+  }), /*#__PURE__*/React.createElement("line", {
+    x1: "15.41",
+    y1: "6.51",
+    x2: "8.59",
+    y2: "10.49"
+  }))));
+}
+
 /* ============================================================
    TARJETA KANBAN
    ============================================================ */
@@ -297,7 +402,11 @@ function Card({
     className: "flex items-center justify-between mt-2 pt-2 border-t border-[var(--border)]"
   }, /*#__PURE__*/React.createElement("span", {
     className: "text-[10px] text-slate-500"
-  }, "creado por ", d.creado_por || "—"), mobile && /*#__PURE__*/React.createElement("select", {
+  }, "creado por ", d.creado_por || "—"), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-1"
+  }, /*#__PURE__*/React.createElement(AccionesZonaProp, {
+    url: d.url_zonaprop
+  }), mobile && /*#__PURE__*/React.createElement("select", {
     value: d.columna_kanban,
     onClick: e => e.stopPropagation(),
     onChange: e => {
@@ -309,7 +418,7 @@ function Card({
   }, KANBAN_COLS.map(c => /*#__PURE__*/React.createElement("option", {
     key: c.id,
     value: c.id
-  }, c.label)))));
+  }, c.label))))));
 }
 
 // Variante concisa tipo lista: una fila baja con miniatura, datos clave y estrellas.
@@ -349,7 +458,11 @@ function CardCompacta({
   }, fmtMoney(d.precio_alquiler, d.moneda_alquiler)), /*#__PURE__*/React.createElement(Stars, {
     value: d.estrellas || 0,
     size: 11
-  }))));
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "flex-shrink-0"
+  }, /*#__PURE__*/React.createElement(AccionesZonaProp, {
+    url: d.url_zonaprop
+  })));
 }
 
 /* ============================================================
