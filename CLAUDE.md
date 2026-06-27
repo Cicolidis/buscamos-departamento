@@ -11,10 +11,18 @@ con IA.
 
 ## Archivos
 
-- `index.html` (o `deptos-laura-camilo.html`) — la app completa. React + ReactDOM + Babel
-  standalone + Firebase (compat) + Tailwind, **todo por CDN en un solo archivo**. Sin build step.
+- `app.jsx` — **el código fuente de la app** (React + JSX). Acá se edita todo.
+- `app.js` — generado por el build (`npm run build`, que corre `babel app.jsx -o app.js`).
+  Se commitea porque GitHub Pages lo sirve directo. **No editar a mano.**
+- `index.html` — el cascarón: carga React + Firebase (compat) + Tailwind por CDN y referencia
+  `app.js`. El JSX se precompila (no hay Babel standalone en producción: conflictúa con el CDN
+  de Tailwind).
+- `babel.config.json` — preset de React en runtime clásico (`React.createElement`), para que el
+  build no emita `import` (que rompería en el navegador sin bundler).
 - `worker.js` — Cloudflare Worker que hace de proxy a la API de Anthropic para el parseo.
 - `wrangler.toml` — config del Worker.
+
+**Flujo de edición:** editar `app.jsx` → `npm run build` → commitear `app.jsx` **y** `app.js`.
 
 ## Arquitectura y la tensión central (importante)
 
